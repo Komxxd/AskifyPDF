@@ -1,0 +1,40 @@
+# General
+.DS_Store
+*.log
+.vscode/
+
+# Node.js
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env
+.env.*
+! .env.example
+
+# App subfolders
+app/frontend/node_modules/
+app/backend/node_modules/
+app/frontend/dist/
+app/backend/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+env/
+venv/
+ENV/
+
+# RAG / Data
+data/
+chroma/
+!data/.keep
+*.pdf
+!example.pdf
+
+# OS specific
+Thumbs.db
+desktop.ini
