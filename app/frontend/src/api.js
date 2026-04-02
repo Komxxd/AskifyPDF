@@ -14,7 +14,7 @@ export async function processDocument(storagePath, docId, userId) {
   return res.json();
 }
 
-export async function queryDocument(docId, query) {
+export async function chatWithDocument(docId, query) {
   const res = await fetch(`${API_BASE}/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

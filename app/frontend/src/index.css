@@ -1,52 +1,60 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
-@font-face {
-  font-family: 'Satoshi';
-  src: url('/Satoshi-Bold.otf') format('opentype');
-  font-weight: 700;
-  font-style: normal;
-}
-
 @theme {
-  --font-satoshi: 'Satoshi', sans-serif;
   --font-inter: 'Inter', sans-serif;
   --font-sans: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
 
   --color-primary-main: #ffffff;
-  --color-primary-cobalt: #ffffff; 
-  --color-surface-base: #000000;
-  --color-surface-container: #121212;
-  --color-surface-highest: #1e1e1e;
+  /* Architectural Monolith Palette */
+  --color-surface-base: #131313;
+  --color-surface-well: #1c1b1b;
+  --color-surface-active: #353534;
+  --color-surface-recessed: #0e0e0e;
+  --color-surface-sidebar: #1c1b1b;
+  --color-border-monolith: rgba(255, 255, 255, 0.05);
+  --color-text-dim: #c6c6c6;
   
   --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+html, body, #root {
+  height: 100vh !important;
+  width: 100vw !important;
+  overflow: hidden !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
 body {
-  @apply bg-surface-base text-[#dae2fd] antialiased font-sans min-h-screen selection:bg-white selection:text-black;
+  @apply bg-surface-base text-white antialiased font-sans selection:bg-white selection:text-black;
+  margin: 0;
+  padding: 0;
 }
 
-.glass-panel {
-  @apply bg-[#121212]/80 backdrop-blur-[24px] rounded-[2rem] border border-white/5 shadow-2xl;
+/* Sharp Architecture - 0px Philosophy */
+* {
+  border-radius: 0px !important;
 }
 
-.button-glow:hover {
-  @apply shadow-[0_0_15px_rgba(255,255,255,0.2)];
+/* Tonal Hierarchy Utilities */
+.panel-base {
+  @apply bg-surface-base;
 }
 
-.input-glass {
-  @apply bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3.5 outline-none transition-all duration-300;
+.panel-well {
+  @apply bg-surface-well;
 }
 
-.input-glass:focus {
-  @apply border-white/40 shadow-[0_0_15px_rgba(255,255,255,0.05)];
+.panel-recessed {
+  @apply bg-surface-recessed;
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar - Minimal */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -54,7 +62,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-white/10 rounded-full border-2 border-transparent;
+  @apply bg-white/10;
 }
 
 ::-webkit-scrollbar-thumb:hover {

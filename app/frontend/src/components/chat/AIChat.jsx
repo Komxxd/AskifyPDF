@@ -1,13 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Zap, MessageSquare, History, ShieldCheck, Info } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { queryDocument } from '../../api';
+import { useState, useRef, useEffect } from "react";
+import { Send, Loader2, Sparkles, User, Settings2, Command, Bot, Info, Map } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { chatWithDocument } from "../../api";
 
-const AIChat = ({ activeDocumentId }) => {
+const AIChat = ({ activeDocumentId, onPageJump }) => {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Hello! I'm your Grounded PDF Assistant. Ask me anything about the uploaded document, and I'll provide answers with direct evidence from the text.", timestamp: new Date() }
+    { role: 'assistant', content: "Document-Grounded analysis initiated. Ask a query below.", citations: [] }
   ]);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
@@ -15,127 +15,149 @@ const AIChat = ({ activeDocumentId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
+  useEffect(scrollToBottom, [messages, isTyping]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!inputValue.trim()) return;
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!inputValue.trim() || !activeDocumentId) return;
 
-    // Add user message
-    const userMessage = { role: 'user', content: inputValue, timestamp: new Date() };
+    const userMessage = { role: 'user', content: inputValue };
     setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
+    setInputValue("");
     setIsTyping(true);
 
-    // Call real AI Backend
-    const fetchResponse = async () => {
-      try {
-        const data = await queryDocument(activeDocumentId, inputValue);
-        const aiMessage = { 
-          role: 'assistant', 
-          content: data.answer || "I couldn't find an answer in the document context.", 
-          timestamp: new Date() 
-        };
-        setMessages(prev => [...prev, aiMessage]);
-      } catch (err) {
-        console.error("Query failed:", err);
-        setMessages(prev => [...prev, { role: 'assistant', content: "Error connecting to AI engine. Make sure the backend is running.", timestamp: new Date() }]);
-      } finally {
-        setIsTyping(false);
-      }
-    };
+    try {
+      console.log(`DEBUG_SYNC: Polling for ${activeDocumentId} with query: ${inputValue}`);
+      const response = await chatWithDocument(activeDocumentId, inputValue);
+      console.log("DEBUG_RESPONSE_PAYLOAD:", response);
 
-    fetchResponse();
+      // Deduplicate citations by page number for a cleaner UI
+      const uniqueCitations = [];
+      const seenPages = new Set();
+      
+      (response.citations || []).forEach(cite => {
+        if (!seenPages.has(cite.page)) {
+          uniqueCitations.push(cite);
+          seenPages.add(cite.page);
+        }
+      });
+
+      const assistantMessage = { 
+        role: 'assistant', 
+        content: response.answer, 
+        citations: uniqueCitations 
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error("DEBUG_SYNC_ERROR:", error);
+      setMessages(prev => [...prev, { role: 'assistant', content: "Synchronization failure with AI heart. Retrying query..." }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleSubmit();
+    }
   };
 
   return (
-    <div className="w-[450px] flex flex-col h-[calc(100vh-120px)] bg-[#0A0A0A] rounded-[2rem] border border-white/5 ml-4 overflow-hidden shadow-2xl shadow-black/40">
-      {/* Header */}
-      <div className="h-16 border-b border-white/5 bg-black/40 px-6 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-white/10 to-white/5 flex items-center justify-center border border-white/10">
-            <Zap size={14} className="text-white" />
-          </div>
-          <div>
-            <h3 className="text-[11px] font-black uppercase tracking-widest text-white leading-tight">Grounded AI</h3>
-            <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest">Context Aware</p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-3">
-            <ShieldCheck size={14} className="text-emerald-500/60" />
-            <div className="h-4 w-px bg-white/5" />
-            <button className="text-white/20 hover:text-white transition-colors">
-              <History size={16} />
-            </button>
-        </div>
+    <div className="flex flex-col h-full bg-surface-well overflow-hidden selection:bg-white selection:text-black">
+      {/* CHAT HEADER */}
+      <div className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-surface-recessed/30 shrink-0">
+         <div className="flex items-center space-x-3">
+            <Bot size={14} className="text-white/40" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Ask It</span>
+         </div>
+         <div className="flex items-center space-x-4 opacity-10">
+            <Settings2 size={14} strokeWidth={1} />
+         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar scroll-smooth">
+      {/* MESSAGES */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-10 custom-scrollbar bg-surface-base">
         {messages.map((msg, i) => (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+            animate={{ opacity: 1, x: 0 }}
             key={i} 
-            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+            className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div 
-              className={`
-                max-w-[90%] p-4 rounded-3xl text-[13px] leading-relaxed shadow-lg
+            <div className={`
+              max-w-[90%] flex flex-col
+              ${msg.role === 'user' ? 'items-end' : 'items-start'}
+            `}>
+              <div className={`
+                p-5 text-[13px] leading-relaxed relative
                 ${msg.role === 'user' 
-                  ? 'bg-neutral-800 text-white rounded-tr-sm border border-white/5' 
-                  : 'bg-white/5 text-white/90 rounded-tl-sm border border-white/10 backdrop-blur-3xl'}
-              `}
-            >
-              {msg.content}
-            </div>
-            <div className="mt-2 text-[8px] font-black uppercase tracking-widest text-white/10 px-2 flex items-center space-x-2">
-               <span>{msg.role === 'user' ? 'You' : 'AskifyPDF'}</span>
-               <div className="w-1 h-1 rounded-full bg-white/5" />
-               <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  ? 'bg-white/5 border border-white/10 text-white italic' 
+                  : 'bg-surface-well border border-white/[0.03] text-white/70'}
+              `}>
+                {msg.content}
+                
+                {/* Interactive Citations */}
+                {msg.role === 'assistant' && msg.citations?.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-white/[0.03] space-y-3">
+                     <div className="flex items-center space-x-2">
+                        <Map size={10} className="text-white/20" />
+                        <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-white/10 italic">Source Connections</span>
+                     </div>
+                     <div className="flex flex-wrap gap-2">
+                        {msg.citations.map((cite, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => onPageJump?.(cite.page, cite.text)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 bg-white/[0.02] hover:bg-white/5 border border-white/[0.05] transition-all text-[9px] font-bold uppercase tracking-widest text-white/40 hover:text-white"
+                          >
+                            <span>PAGE_{cite.page}</span>
+                            <span className="opacity-20 group-hover:opacity-100 transition-opacity">Jump →</span>
+                          </button>
+                        ))}
+                     </div>
+                  </div>
+                )}
+                
+                {msg.role === 'assistant' && msg.citations?.length === 0 && i > 0 && (
+                  <div className="mt-4 pt-4 border-t border-white/[0.03] text-white/5 text-[8px] font-bold uppercase tracking-[0.4em] italic">
+                    NO_GROUNDED_SOURCES_LINKED
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 text-[8px] font-bold uppercase tracking-[0.3em] text-white/10 px-1 italic">
+                 {msg.role === 'user' ? 'YOU' : 'ENGINE_CORE_OUTPUT'}
+              </div>
             </div>
           </motion.div>
         ))}
         {isTyping && (
-          <div className="flex items-center space-x-2 p-4 bg-white/5 rounded-2xl w-20 animate-pulse">
-            <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-            <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
-            <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+          <div className="flex items-center space-x-3 py-4 italic opacity-10 text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">
+            <Loader2 size={12} className="animate-spin" />
+            <span>Thinking...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="p-6 bg-black/40 border-t border-white/5">
-        <form onSubmit={handleSubmit} className="relative group">
-          <input 
-            type="text"
+      {/* INPUT AREA */}
+      <div className="p-4 bg-surface-well border-t border-white/5 shrink-0">
+        <form onSubmit={handleSubmit} className="relative group/input bg-surface-recessed border border-white/5 p-4 focus-within:border-white/20 transition-all">
+          <textarea 
+            rows={2}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask anything about the PDF..."
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 pr-16 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-white/10 focus:bg-white/[0.08] transition-all"
+            onKeyDown={handleKeyDown}
+            placeholder="Analytical query..."
+            className="w-full bg-transparent resize-none text-[13px] text-white placeholder:text-white/10 focus:outline-none font-medium leading-relaxed pr-12"
           />
           <button 
             type="submit"
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10"
+            disabled={!inputValue.trim() || isTyping}
+            className="absolute bottom-4 right-4 text-white/20 hover:text-white disabled:opacity-0 transition-all active:scale-95 p-1"
           >
-            <Send size={18} />
+            <Send size={16} />
           </button>
         </form>
-        <div className="mt-4 flex items-center justify-center space-x-4">
-           <div className="flex items-center space-x-2 text-[8px] font-black uppercase tracking-widest text-white/5 hover:text-white/20 transition-colors cursor-help">
-              <Info size={10} />
-              <span>Grounded in selection</span>
-           </div>
-           <div className="w-1 h-1 rounded-full bg-white/5" />
-           <div className="flex items-center space-x-2 text-[8px] font-black uppercase tracking-widest text-white/5 hover:text-white/20 transition-colors cursor-help">
-              <MessageSquare size={10} />
-              <span>Full Doc Context</span>
-           </div>
-        </div>
       </div>
     </div>
   );

@@ -96,8 +96,8 @@ async def query_document(req: QueryRequest):
     """
     try:
         # Pass the specific doc_id to narrow down the search
-        answer = query_rag(req.query, doc_id=req.doc_id)
-        return {"answer": answer}
+        result = query_rag(req.query, doc_id=req.doc_id)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

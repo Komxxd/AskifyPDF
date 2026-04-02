@@ -2,15 +2,18 @@ import { useState, useEffect, useCallback } from "react";
 import Auth from './components/auth/Auth';
 import LandingPage from './components/landing/LandingPage';
 import { useAuth } from './hooks/useAuth';
-import Header from "./components/layout/Header";
 import PDFViewer from "./components/pdf/PDFViewer";
 import AIChat from "./components/chat/AIChat";
-import { getDocuments, uploadDocument } from "./services/supabaseService";
+import DocumentList from "./components/dashboard/DocumentList";
+import { getDocuments, uploadDocument, deleteDocument } from "./services/supabaseService";
 import { processDocument } from "./api";
 import { 
   FileUp, 
   Loader2,
-  Plus
+  ArrowLeft,
+  Plus,
+  Database,
+  LogOut
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabase";
@@ -19,63 +22,74 @@ function App() {
   const { user, loading: authLoading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [activeDoc, setActiveDoc] = useState(null);
+  const [documents, setDocuments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [currentDocPage, setCurrentDocPage] = useState(1);
 
-  // Fetch only the most recent document on load to auto-open it
-  const fetchRecentDoc = useCallback(async () => {
-    if (!user) return;
+  const fetchDocs = useCallback(async () => {
+    if (!user?.id) return;
     try {
-      setInitialLoading(true);
+      if (documents.length === 0) setInitialLoading(true);
       const docs = await getDocuments(user.id);
-      if (docs && docs.length > 0) {
-        setActiveDoc(docs[0]);
-      }
+      setDocuments(docs || []);
     } catch (err) {
       console.error("Error fetching docs:", err);
     } finally {
       setInitialLoading(false);
     }
-  }, [user]);
+  }, [user?.id, documents.length]);
 
   useEffect(() => {
     if (user?.id) {
-      // Only fetch if the user ID actually changed or we have no active doc
-      if (!activeDoc) {
-        fetchRecentDoc();
-      }
+      fetchDocs();
     } else if (!user) {
       setShowAuth(false);
       setActiveDoc(null);
+      setDocuments([]);
     }
-  }, [user?.id, fetchRecentDoc, activeDoc]);
+  }, [user?.id, fetchDocs]);
+
+  useEffect(() => {
+    if (!activeDoc) {
+      setCurrentDocPage(1);
+    }
+  }, [activeDoc]);
 
   const handleUpload = async (file) => {
     if (!file || !user) return;
     try {
       setIsUploading(true);
       const newDoc = await uploadDocument(user.id, file);
-      
-      // Notify Python backend to index
       try {
         await processDocument(newDoc.storage_path, newDoc.id, user.id);
       } catch (err) {
         console.error("Backend indexing failed:", err);
       }
-      
+      await fetchDocs();
       setActiveDoc(newDoc);
     } catch (err) {
       console.error("Upload error:", err);
-      alert("Failed to upload document. Please try again.");
     } finally {
       setIsUploading(false);
     }
   };
 
-  if (authLoading || (user && initialLoading)) {
+  const handleDelete = async (doc) => {
+    if (!window.confirm(`Delete "${doc.file_name}"?`)) return;
+    try {
+      await deleteDocument(doc.id, doc.storage_path);
+      setDocuments(prev => prev.filter(d => d.id !== doc.id));
+      if (activeDoc?.id === doc.id) setActiveDoc(null);
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
+  };
+
+  if (authLoading || (user && initialLoading && documents.length === 0)) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-8">
-         <div className="text-white/20 text-[9px] font-bold uppercase tracking-[0.4em] animate-pulse italic">Initializing Grounded PDF Engine...</div>
+      <div className="h-screen bg-surface-base flex items-center justify-center p-8 overflow-hidden">
+         <div className="text-white/20 text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse italic whitespace-nowrap">Loading documents...</div>
       </div>
     );
   }
@@ -83,12 +97,12 @@ function App() {
   if (!user) {
     if (showAuth) {
       return (
-        <div className="relative">
+        <div className="h-screen overflow-hidden relative">
           <button 
             onClick={() => setShowAuth(false)}
-            className="fixed top-8 left-10 z-[60] bg-white/5 border border-white/10 text-white/40 px-5 py-2 rounded-xl hover:text-white transition-all text-[8px] uppercase font-black tracking-widest"
+            className="fixed top-12 left-12 z-[60] text-white/20 hover:text-white transition-all text-[10px] font-bold uppercase tracking-[0.2em]"
           >
-            ← Back to Landing
+            ← Back
           </button>
           <Auth initialMode={showAuth === 'login'} />
         </div>
@@ -98,76 +112,78 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#f8fafc] font-inter selection:bg-white selection:text-black flex flex-col overflow-hidden">
-      <Header />
+    <div className="h-screen w-screen bg-surface-base text-white font-inter flex flex-col overflow-hidden selection:bg-white selection:text-black">
+      {/* HEADER */}
+      <header className="h-16 bg-surface-well px-12 flex items-center justify-between shrink-0 z-50">
+         <div className="flex items-center space-x-3">
+            <div className="w-5 h-5 bg-white flex items-center justify-center">
+               <Database size={11} className="text-black" />
+            </div>
+            <h2 className="font-black uppercase tracking-tighter text-[16px] italic leading-none" onClick={() => setActiveDoc(null)} style={{cursor: 'pointer'}}>
+               Askify<span className="text-white/10">PDF</span>
+            </h2>
+         </div>
 
-      {/* Persistent floating upload button when a doc is active */}
-      {activeDoc && (
-        <button 
-          onClick={() => document.getElementById('pdf-upload').click()}
-          className="fixed bottom-10 left-10 z-[60] bg-white/5 border border-white/10 text-white/40 px-6 py-3 rounded-full hover:bg-white/10 hover:text-white transition-all text-[9px] uppercase font-black tracking-[0.2em] backdrop-blur-3xl flex items-center space-x-3 shadow-2xl"
-        >
-          {isUploading ? <Loader2 className="animate-spin" size={12} /> : <Plus size={14} />}
-          <span>Upload Another</span>
-          <input 
-            id="pdf-upload" 
-            type="file" 
-            accept=".pdf" 
-            className="hidden" 
-            onChange={(e) => handleUpload(e.target.files[0])}
-          />
-        </button>
-      )}
+         <div className="flex items-center space-x-10">
+            <button 
+               onClick={() => document.getElementById('monolith-upload').click()}
+               disabled={isUploading}
+               className="h-10 px-8 bg-white text-black hover:bg-neutral-200 transition-all text-[10px] font-bold uppercase tracking-[0.2em] flex items-center space-x-2.5 active:scale-95">
+               {isUploading ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
+               <span>Add PDF</span>
+               <input id="monolith-upload" type="file" accept=".pdf" className="hidden" onChange={(e) => handleUpload(e.target.files[0])} />
+            </button>
+            <button onClick={() => supabase.auth.signOut()} className="text-white/20 hover:text-white transition-colors" title="Sign Out">
+               <LogOut size={16} />
+            </button>
+         </div>
+      </header>
 
-      <main className="flex-1 p-6 h-[calc(100vh-80px)] overflow-hidden">
+      {/* WORKSPACE */}
+      <main className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           {activeDoc ? (
             <motion.div 
-              key={activeDoc.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              className="flex h-full w-full"
+              key="document-focus" 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="flex h-full w-full overflow-hidden"
             >
-              <div className="flex-1">
-                <PDFViewer 
-                  fileUrl={`${supabase.storage.from('documents').getPublicUrl(activeDoc.storage_path).data.publicUrl}`} 
-                  fileName={activeDoc.file_name}
-                />
+              <div className="flex-1 flex flex-col h-full bg-surface-base">
+                {/* Close Bar */}
+                <header className="h-10 flex items-center px-12 shrink-0 bg-surface-recessed/50 border-b border-white/5">
+                  <div className="flex items-center space-x-3">
+                    <FileUp size={11} className="text-white/20" />
+                    <span className="font-bold text-[10px] uppercase tracking-[0.1em] truncate text-white/40">{activeDoc.file_name}</span>
+                  </div>
+                </header>
+                
+                <div className="flex-1 overflow-hidden">
+                  <PDFViewer 
+                    fileUrl={`${supabase.storage.from('documents').getPublicUrl(activeDoc.storage_path).data.publicUrl}`} 
+                    fileName={activeDoc.file_name}
+                    externalPage={currentDocPage}
+                    onPageAction={setCurrentDocPage}
+                  />
+                </div>
               </div>
-              <AIChat activeDocumentId={activeDoc.id} />
+              <div className="w-[480px] h-full bg-surface-well border-l border-white/5">
+                 <AIChat 
+                    activeDocumentId={activeDoc.id} 
+                    onPageJump={setCurrentDocPage}
+                 />
+              </div>
             </motion.div>
           ) : (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="h-full flex flex-col items-center justify-center p-12 bg-white/[0.02] border border-dashed border-white/10 rounded-[3rem] space-y-10"
-            >
-              <div className="relative group">
-                 <div className="absolute -inset-10 bg-white/5 blur-3xl rounded-full scale-0 group-hover:scale-100 transition-transform duration-1000 opacity-0 group-hover:opacity-100" />
-                 <div className="w-32 h-32 rounded-[2.5rem] bg-gradient-to-tr from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-2xl shadow-black relative rotate-3 group-hover:rotate-6 transition-all">
-                    <FileUp size={48} strokeWidth={1} className="text-white/20 group-hover:text-white transition-all scale-75 group-hover:scale-110" />
-                 </div>
-              </div>
-              <div className="text-center space-y-4 max-w-sm">
-                 <h2 className="text-2xl font-black uppercase tracking-tighter italic">Ready to analyze?</h2>
-                 <p className="text-[11px] font-medium leading-relaxed text-white/30 uppercase tracking-[0.2em]">
-                   Upload your PDF to begin grounded AI analysis with visual highlights and page-level evidence.
-                 </p>
-              </div>
-              <button 
-                onClick={() => document.getElementById('pdf-upload-empty').click()}
-                className="bg-white text-black px-12 py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-white/20"
-              >
-                 {isUploading ? 'Uploading...' : 'Get Started'}
-                 <input 
-                    id="pdf-upload-empty" 
-                    type="file" 
-                    accept=".pdf" 
-                    className="hidden" 
-                    onChange={(e) => handleUpload(e.target.files[0])}
+            <motion.div key="library-monolith" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex h-full flex-col overflow-hidden w-full px-12 pt-12">
+              <div className="flex-1 overflow-hidden">
+                 <DocumentList 
+                   documents={documents} 
+                   onDocClick={(doc) => setActiveDoc(doc)} 
+                   onDelete={handleDelete}
                  />
-              </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

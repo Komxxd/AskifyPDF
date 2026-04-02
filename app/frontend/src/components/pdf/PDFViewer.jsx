@@ -6,10 +6,6 @@ import {
   ZoomIn, 
   ZoomOut, 
   Download, 
-  Search,
-  Maximize2,
-  FileText,
-  Layers,
   Layout
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,16 +16,22 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-const PDFViewer = ({ fileUrl, fileName }) => {
+const PDFViewer = ({ fileUrl, fileName, externalPage, onPageAction }) => {
   const [numPages, setNumPages] = useState(null);
-  const [pageNumber, setPageNumber] = useState(1);
+  const [internalPage, setInternalPage] = useState(1);
   const [zoom, setZoom] = useState(1.0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const containerRef = useRef(null);
+
+  // Sync internal state with external page jumps
+  useEffect(() => {
+    if (externalPage && externalPage !== internalPage) {
+      setInternalPage(externalPage);
+    }
+  }, [externalPage, internalPage]);
 
   function onDocumentLoadSuccess({ numPages }) {
     setNumPages(numPages);
-    setPageNumber(1);
+    if (!externalPage) setInternalPage(1);
   }
 
   const zoomIn = () => setZoom(prev => Math.min(prev + 0.2, 3.0));
@@ -37,130 +39,125 @@ const PDFViewer = ({ fileUrl, fileName }) => {
   
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= numPages) {
-      setPageNumber(newPage);
+      setInternalPage(newPage);
+      onPageAction?.(newPage);
     }
   };
 
   return (
-    <div className="flex h-[calc(100vh-120px)] bg-[#0A0A0A] rounded-[2rem] border border-white/5 overflow-hidden">
-      {/* Thumbnails Sidebar */}
-      <AnimatePresence initial={false}>
-        {sidebarOpen && (
-          <motion.div 
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 260, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            className="border-r border-white/5 bg-black/40 flex flex-col"
+    <div className="flex flex-col h-full bg-surface-sidebar overflow-hidden border border-white/5 selection:bg-white selection:text-black">
+      {/* TOOLBAR */}
+      <div className="h-12 bg-surface-base border-b border-white/5 px-6 flex items-center justify-between z-20 shrink-0">
+        <div className="flex items-center space-x-6">
+          <button 
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-white/20 hover:text-white transition-colors p-1"
           >
-            <div className="p-6 border-b border-white/5 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Thumbnails</span>
-              <Layers size={14} className="text-white/20" />
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-              {numPages && Array.from(new Array(numPages), (el, index) => (
-                <div 
-                  key={`thumb_${index + 1}`}
-                  onClick={() => setPageNumber(index + 1)}
-                  className={`
-                    relative cursor-pointer transition-all duration-300 rounded-xl overflow-hidden group
-                    ${pageNumber === index + 1 ? 'ring-2 ring-white/20 scale-[0.98]' : 'hover:scale-[0.98]'}
-                  `}
-                >
-                  <div className="bg-white/5 aspect-[3/4] flex items-center justify-center overflow-hidden border border-white/5">
-                    <Document file={fileUrl}>
-                       <Page 
-                         pageNumber={index + 1} 
-                         width={200}
-                         className="opacity-60 group-hover:opacity-100 transition-opacity"
-                         renderTextLayer={false}
-                         renderAnnotationLayer={false}
-                       />
-                    </Document>
-                  </div>
-                  <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-md text-[8px] font-bold text-white/60">
-                    {index + 1}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Viewer Area */}
-      <div className="flex-1 flex flex-col relative bg-[#111] overflow-hidden">
-        {/* Toolbar */}
-        <div className="h-14 bg-black/40 backdrop-blur-3xl border-b border-white/5 px-6 flex items-center justify-between z-10">
-          <div className="flex items-center space-x-6">
+            <Layout size={16} />
+          </button>
+          <div className="h-4 w-[1px] bg-white/5" />
+          <div className="flex items-center space-x-4">
             <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-white/40 hover:text-white transition-colors"
+              onClick={() => handlePageChange(internalPage - 1)}
+              disabled={internalPage <= 1}
+              className="p-1 hover:bg-white/5 disabled:opacity-5 transition-all text-white/40 hover:text-white"
             >
-              <Layout size={18} />
+              <ChevronLeft size={16} />
             </button>
-            <div className="h-4 w-px bg-white/5" />
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => handlePageChange(pageNumber - 1)}
-                disabled={pageNumber <= 1}
-                className="p-1 hover:bg-white/5 rounded-lg disabled:opacity-20 transition-all"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <span className="text-[11px] font-black tracking-widest text-white/60">
-                PAGE <span className="text-white">{pageNumber}</span> / {numPages || '--'}
-              </span>
-              <button 
-                onClick={() => handlePageChange(pageNumber + 1)}
-                disabled={pageNumber >= numPages}
-                className="p-1 hover:bg-white/5 rounded-lg disabled:opacity-20 transition-all"
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </div>
-
-          <div className="absolute left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.3em] text-white/20 truncate max-w-[300px]">
-            {fileName}
-          </div>
-
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center bg-white/5 rounded-xl p-1">
-              <button onClick={zoomOut} className="p-2 hover:bg-white/10 rounded-lg transition-all text-white/40 hover:text-white">
-                <ZoomOut size={16} />
-              </button>
-              <span className="text-[10px] font-black w-14 text-center text-white/60">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button onClick={zoomIn} className="p-2 hover:bg-white/10 rounded-lg transition-all text-white/40 hover:text-white">
-                <ZoomIn size={16} />
-              </button>
-            </div>
-            <div className="h-4 w-px bg-white/5" />
-            <a href={fileUrl} download={fileName} className="text-white/40 hover:text-white transition-colors">
-              <Download size={18} />
-            </a>
+            <span className="text-[10px] font-bold tracking-[0.2em] text-white/20 uppercase">
+              <span className="text-white/60">{internalPage}</span> / {numPages || '--'}
+            </span>
+            <button 
+              onClick={() => handlePageChange(internalPage + 1)}
+              disabled={internalPage >= numPages}
+              className="p-1 hover:bg-white/5 disabled:opacity-5 transition-all text-white/40 hover:text-white"
+            >
+              <ChevronRight size={16} />
+            </button>
           </div>
         </div>
 
-        {/* PDF Canvas */}
-        <div 
-          ref={containerRef}
-          className="flex-1 overflow-auto p-12 flex justify-center items-start custom-scrollbar bg-neutral-900/50"
-        >
-          <div className="shadow-2xl shadow-black/80 rounded-sm overflow-hidden bg-white origin-top transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
+        <div className="flex items-center space-x-6">
+          <div className="flex items-center bg-white/[0.02] border border-white/5 p-0.5">
+            <button onClick={zoomOut} className="p-1.5 hover:bg-white/5 transition-all text-white/20 hover:text-white">
+              <ZoomOut size={13} />
+            </button>
+            <span className="text-[9px] font-bold w-12 text-center text-white/40 uppercase tracking-widest">
+               {Math.round(zoom * 100)}%
+            </span>
+            <button onClick={zoomIn} className="p-1.5 hover:bg-white/5 transition-all text-white/20 hover:text-white">
+              <ZoomIn size={13} />
+            </button>
+          </div>
+          <div className="h-4 w-[1px] bg-white/5" />
+          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-white/20 hover:text-white transition-colors p-1">
+            <Download size={16} />
+          </a>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Thumbnails Sidebar */}
+        <AnimatePresence initial={false}>
+          {sidebarOpen && (
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: 220 }}
+              exit={{ width: 0 }}
+              className="border-r border-white/5 bg-surface-well shrink-0 flex flex-col h-full overflow-hidden"
+            >
+              <div className="h-10 px-4 border-b border-white/5 flex items-center bg-surface-recessed/30 shrink-0">
+                <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/10 italic">Library_Index</span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 bg-black/5">
+                <Document file={fileUrl} loading={null}>
+                  <div className="space-y-4">
+                    {numPages && Array.from(new Array(numPages), (el, index) => (
+                      <div 
+                        key={`thumb_${index + 1}`}
+                        onClick={() => handlePageChange(index + 1)}
+                        className={`
+                          relative cursor-pointer transition-all duration-300 border
+                          ${internalPage === index + 1 ? 'border-white/40 bg-white/5' : 'border-white/5 hover:border-white/20'}
+                        `}
+                      >
+                        <div className="bg-black/20 aspect-[3/4] flex items-center justify-center overflow-hidden pointer-events-none">
+                           <Page 
+                             pageNumber={index + 1} 
+                             width={180}
+                             className="opacity-40"
+                             renderTextLayer={false}
+                             renderAnnotationLayer={false}
+                           />
+                        </div>
+                        <div className="absolute top-0 right-0 bg-white/10 backdrop-blur-sm px-1.5 py-0.5 text-[8px] font-bold text-white/40">
+                          {index + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Document>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main Viewer area */}
+        <div className="flex-1 overflow-auto p-16 flex justify-center items-start custom-scrollbar bg-surface-base h-full">
+          <div 
+             className="bg-white transition-transform duration-200 shadow-[0_0_100px_rgba(0,0,0,0.5)] origin-top border border-white/10"
+             style={{ transform: `scale(${zoom})`, marginBottom: '100px' }}
+          >
             <Document 
               file={fileUrl} 
               onLoadSuccess={onDocumentLoadSuccess}
-              loading={
-                <div className="w-[600px] aspect-[1/1.4] flex items-center justify-center bg-white/5 animate-pulse rounded-2xl">
-                   <div className="text-[9px] font-black uppercase tracking-[0.5em] text-white/20 italic">Loading PDF...</div>
-                </div>
-              }
+              loading={<div className="w-[700px] h-[900px] bg-white/5" />}
             >
               <Page 
-                pageNumber={pageNumber} 
-                width={800} // Base width, can be adjusted
+                key={`${internalPage}_${zoom}`}
+                pageNumber={internalPage} 
+                width={700}
                 renderAnnotationLayer={true}
                 renderTextLayer={true}
                 className="mx-auto"
