@@ -28,9 +28,18 @@ html, body, #root {
 }
 
 body {
-  @apply bg-surface-base text-white antialiased font-sans selection:bg-white selection:text-black;
+  background-color: var(--color-surface-base);
+  color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: var(--font-sans);
   margin: 0;
   padding: 0;
+}
+
+body ::selection {
+  background-color: white;
+  color: black;
 }
 
 /* Sharp Architecture - 0px Philosophy */
@@ -40,15 +49,15 @@ body {
 
 /* Tonal Hierarchy Utilities */
 .panel-base {
-  @apply bg-surface-base;
+  background-color: var(--color-surface-base);
 }
 
 .panel-well {
-  @apply bg-surface-well;
+  background-color: var(--color-surface-well);
 }
 
 .panel-recessed {
-  @apply bg-surface-recessed;
+  background-color: var(--color-surface-recessed);
 }
 
 /* Custom Scrollbar - Minimal */
@@ -58,13 +67,13 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background-color: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-white/10;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-white/20;
+  background-color: rgba(255, 255, 255, 0.2);
 }
