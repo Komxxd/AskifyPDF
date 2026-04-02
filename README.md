@@ -4,7 +4,6 @@ AskifyPDF is an intelligent, evidence-first document analysis platform designed 
 
 Built with an uncompromising "Architectural Monolith" design philosophy, AskifyPDF offers a distraction-free, dense, and fully synchronized workspace where every AI citation acts as a clickable navigation bridge directly to the relevant PDF page.
 
-![AskifyPDF UI Preview](https://via.placeholder.com/1200x800.png?text=AskifyPDF+Dashboard) <!-- Replace with actual screenshot -->
 
 ## Features
 
