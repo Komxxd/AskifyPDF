@@ -76,5 +76,3 @@ npm run dev
 3. **Retrieval-Augmented Generation**: User queries are embedded and mapped against the Pinecone index to find the most contextually relevant chunks.
 4. **Synthesis & Citation**: The backend system processes the raw context, generates an intelligent answer using the LLM, and formats clickable citations that are synced via React state directly back into the PDF viewer.
 
-## License
-MIT
